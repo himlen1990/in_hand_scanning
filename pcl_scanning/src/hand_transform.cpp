@@ -3,7 +3,7 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
-//#include <geometry_msgs/PointStamped.h>
+#include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/PoseArray.h>
 #include <tf/transform_listener.h>
 #include <iostream>
@@ -19,11 +19,11 @@ public:
   message_filters::Synchronizer<message_filters::sync_policies::ApproximateTime< sensor_msgs::PointCloud2, geometry_msgs::PoseArray> >* sync_input_2_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> points_sub;
   message_filters::Subscriber<geometry_msgs::PoseArray> point2d_sub;
-//  ros::Publisher trackerbox_center_pub;
+  ros::Publisher palm_center_pub;
 //  ros::Publisher target_lost_pub;
 //  tf::TransformListener listener;
 //  tf::StampedTransform transform;
-//  geometry_msgs::PointStamped center;
+  geometry_msgs::PointStamped center;
 //  geometry_msgs::PointStamped pt_transformed;
 //  double timer_start,timer_now;
 //  float pre_x, pre_y, pre_z;
@@ -31,9 +31,9 @@ public:
   
   pointProject()
   {
-//    trackerbox_center_pub = nh_.advertise<geometry_msgs::PointStamped>("trackerbox_center_3D", 1);
+    palm_center_pub = nh_.advertise<geometry_msgs::PointStamped>("palm_center_3D", 1);
 //  target_lost_pub = nh_.advertise<std_msgs::String>("follow_me/target_lost", 1);
-    points_sub.subscribe(nh_,"/hsrb/head_rgbd_sensor/depth_registered/rectified_points",1);
+    points_sub.subscribe(nh_,"/camera/depth_registered/points",1);
     point2d_sub.subscribe(nh_,"hand_keypoints",1);
     sync_input_2_ = new message_filters::Synchronizer<message_filters::sync_policies::ApproximateTime< sensor_msgs::PointCloud2, geometry_msgs::PoseArray> >(1);
     sync_input_2_->connectInput(points_sub,point2d_sub);
@@ -47,7 +47,7 @@ public:
 
   void positionCb ( const sensor_msgs::PointCloud2::ConstPtr& points, const geometry_msgs::PoseArray::ConstPtr& hand_keypoints)
   {
-
+    cout<<"trans"<<endl;  
     pcl::PointCloud < pcl::PointXYZRGB > depth_cloud;
     pcl::fromROSMsg(*points, depth_cloud);
     int x0 =hand_keypoints->poses[0].position.x;
@@ -61,12 +61,17 @@ public:
     p0 = depth_cloud.points[depth_cloud.width * y0 + x0] ;
     p1 = depth_cloud.points[depth_cloud.width * y1 + x1] ;
     p2 = depth_cloud.points[depth_cloud.width * y2 + x2] ;
-  
-    if ( !isnan (p0.x) && ((p0.x != 0.0) || (p0.y != 0.0) || (p0.z == 0.0)) &&
-	 !isnan (p1.x) && ((p1.x != 0.0) || (p1.y != 0.0) || (p1.z == 0.0)) &&
-	 !isnan (p2.x) && ((p2.x != 0.0) || (p2.y != 0.0) || (p2.z == 0.0)) )
+
+    if (
+	 !isnan (p1.x) && ((p1.x != 0.0) || (p1.y != 0.0) || (p1.z == 0.0)) 
+	)
       {
-	cout<<"!!!"<<endl;
+	center.point.x=p1.x;
+	center.point.y=p1.y;
+	center.point.z=p1.z;
+	//center.header.frame_id = "camera_link";
+	palm_center_pub.publish(center);
+
       }
   }
 };

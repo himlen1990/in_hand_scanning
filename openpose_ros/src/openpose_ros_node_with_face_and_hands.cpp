@@ -156,7 +156,7 @@ class UserInputClass
         UserInputClass(const std::string& image_topic): it_(nh_)
         {
             // Subscribe to input video feed and publish output video feed
-	  palm_points_pub_ = nh_.advertise<geometry_msgs::PoseArray>("openpose_palm",1);
+	  palm_points_pub_ = nh_.advertise<geometry_msgs::PoseArray>("hand_keypoints",1);
             image_sub_ = it_.subscribe(image_topic, 1, &UserInputClass::convertImage, this);
             cv_img_ptr_ = nullptr;
 
@@ -285,6 +285,7 @@ class UserInputClass
 		  pose.position.x = Cx;
 		  pose.position.y = Cy;
 		  vpose.push_back(pose);
+		  posearray.header = cv_img_ptr_->header;
 		  posearray.poses = vpose;
 		  palm_points_pub_.publish(posearray);
 		}
