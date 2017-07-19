@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
   gflags
   glog_catkin
+  geometry_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -22,8 +23,8 @@ find_package(catkin REQUIRED COMPONENTS
 # find_package(CUDA REQUIRED) # Uncomment this line if you have trouble compiling
 find_package(OpenCV REQUIRED)
 
-set(CAFFE_DIR /home/gft/openpose/3rdparty/caffe)
-set(OPENPOSE_DIR /home/gft/openpose)
+set(CAFFE_DIR /home/pr2/openpose/3rdparty/caffe)
+set(OPENPOSE_DIR /home/pr2/openpose)
 
 set(CAFFE_INCLUDE_DIRS ${CAFFE_DIR}/distribute/include)
 set(CAFFE_LINK_LIBRARY ${CAFFE_DIR}/distribute/lib/libcaffe.so)

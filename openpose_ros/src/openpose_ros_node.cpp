@@ -38,9 +38,9 @@ DEFINE_int32(logging_level,             4,              "The logging level. Inte
                                                         " 255 will not output any. Current OpenPose library messages are in the range 0-4: 1 for"
                                                         " low priority messages and 4 for important ones.");
 // Camera Topic
-DEFINE_string(camera_topic,             "/camera/image_raw",      "Image topic that OpenPose will process.");
+DEFINE_string(camera_topic,             "/camera/rgb/image_rect_color",      "Image topic that OpenPose will process.");
 // OpenPose
-DEFINE_string(model_folder,             "/path/to/openpose/models/",      "Folder path (absolute or relative) where the models (pose, face, ...) are located.");
+DEFINE_string(model_folder,             "/home/pr2/openpose/models/",      "Folder path (absolute or relative) where the models (pose, face, ...) are located.");
 DEFINE_string(model_pose,               "COCO",         "Model to be used (e.g. COCO, MPI, MPI_4_layers).");
 DEFINE_string(net_resolution,           "656x368",      "Multiples of 16. If it is increased, the accuracy usually increases. If it is decreased,"
                                                         " the speed increases.");

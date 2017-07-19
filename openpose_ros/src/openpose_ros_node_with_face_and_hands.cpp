@@ -1,9 +1,12 @@
 #define USE_CAFFE
 
+#include <iostream>
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
+#include <geometry_msgs/PoseArray.h>
+#include <geometry_msgs/Pose.h>
 
 #include <opencv2/core/core.hpp> // cv::Mat & cv::Size
 
@@ -42,10 +45,10 @@ DEFINE_int32(logging_level,             4,              "The logging level. Inte
                                                         " 255 will not output any. Current OpenPose library messages are in the range 0-4: 1 for"
                                                         " low priority messages and 4 for important ones.");
 // Camera Topic
-DEFINE_string(camera_topic,             "/camera/image_raw",      "Image topic that OpenPose will process.");
+DEFINE_string(camera_topic,             "/camera/rgb/image_rect_color",      "Image topic that OpenPose will process.");
 // OpenPose
-DEFINE_string(model_folder,             "/path/to/openpose/models/",      "Folder path (absolute or relative) where the models (pose, face, ...) are located.");
-DEFINE_string(resolution,               "1280x720",     "The image resolution (display and output). Use \"-1x-1\" to force the program to use the"
+DEFINE_string(model_folder,             "/home/pr2/openpose/models/",      "Folder path (absolute or relative) where the models (pose, face, ...) are located.");
+DEFINE_string(resolution,               "1024x768",     "The image resolution (display and output). Use \"-1x-1\" to force the program to use the"
                                                         " default images resolution.");
 DEFINE_int32(num_gpu,                   -1,             "The number of GPU devices to use. If negative, it will use all the available GPUs in your"
                                                         " machine.");
@@ -147,13 +150,16 @@ class UserInputClass
         image_transport::ImageTransport it_;
         image_transport::Subscriber image_sub_;
         cv_bridge::CvImagePtr cv_img_ptr_;
+        ros::Publisher palm_points_pub_;
 
     public:
         UserInputClass(const std::string& image_topic): it_(nh_)
         {
             // Subscribe to input video feed and publish output video feed
+	  palm_points_pub_ = nh_.advertise<geometry_msgs::PoseArray>("openpose_palm",1);
             image_sub_ = it_.subscribe(image_topic, 1, &UserInputClass::convertImage, this);
             cv_img_ptr_ = nullptr;
+
         }
 
         ~UserInputClass(){}
@@ -196,12 +202,10 @@ class UserInputClass
         {
             return cv_img_ptr_;
         }
-};
+
 
 // This worker will just display the result
-class UserOutputClass
-{
-public:
+
     void display(const std::shared_ptr<std::vector<op::Datum>>& datumsPtr)
     {
         // User's displaying/saving/other processing here
@@ -209,12 +213,91 @@ public:
             // datum.poseKeypoints: Array<float> with the estimated pose
         if (datumsPtr != nullptr && !datumsPtr->empty())
         {
-            cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
+	  const auto numberPeopleDetected = datumsPtr->at(0).handKeypoints[0].getSize(0); // = handKeypoints[1].getSize(0)
+	  if(numberPeopleDetected > 0)
+	    {
+	      int part = 0;
+	      int part2 = 9;
+	      int part3 = 1;
+	      int person = 0;
+	      int numberHandParts = 21;
+	      const auto baseIndex = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part);
+	      const auto baseIndex2 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part2);
+	      const auto baseIndex3 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part3);
+	      // Left Hand
+	      const auto xL = datumsPtr->at(0).handKeypoints[0][baseIndex];
+	      const auto yL = datumsPtr->at(0).handKeypoints[0][baseIndex + 1];
+	      const auto scoreL = datumsPtr->at(0).handKeypoints[0][baseIndex + 2];
+	      // Right Hand
+	      const auto xR = datumsPtr->at(0).handKeypoints[1][baseIndex];
+	      const auto yR = datumsPtr->at(0).handKeypoints[1][baseIndex + 1];
+	      const auto scoreR = datumsPtr->at(0).handKeypoints[1][baseIndex + 2];
+
+	      const auto xR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2];
+	      const auto yR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2 + 1];
+	      const auto scoreR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2 + 2];
+
+	      const auto xR3 = datumsPtr->at(0).handKeypoints[1][baseIndex3];
+	      const auto yR3 = datumsPtr->at(0).handKeypoints[1][baseIndex3 + 1];
+	      const auto scoreR3 = datumsPtr->at(0).handKeypoints[1][baseIndex3 + 2];
+
+	      
+	      float vx= xR2-xR;
+	      float vy= yR2-yR;
+	      float mag = sqrt(vx*vx +vy*vy);
+	      vx = vx/mag;
+	      vy = vy/mag;
+	      float temp = vx;
+	      vx = -vy;
+	      vy =temp;
+	      int Cx = -1;
+	      int Cy = -1;
+
+	      if (xR3<xR)
+		{
+		   Cx = xR-vx*10;
+		   Cy = yR-vy*10;
+	      cv::line(cv_img_ptr_->image,cv::Point(int(xR),int(yR)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
+	      cv::line(cv_img_ptr_->image,cv::Point(int(xR),int(yR)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
+
+
+		}
+	      else
+		{
+		   Cx = xR+vx*10;
+		   Cy = yR+vy*10;
+	      cv::line(cv_img_ptr_->image,cv::Point(int(xR),int(yR)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
+	      cv::line(cv_img_ptr_->image,cv::Point(int(xR),int(yR)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
+
+		}
+	      
+	      if(Cx!=-1 && Cy!=-1)
+		{
+		  geometry_msgs::PoseArray posearray;
+		  std::vector<geometry_msgs::Pose> vpose;
+		  geometry_msgs::Pose pose;
+		  pose.position.x = xR;
+		  pose.position.y = yR;
+		  vpose.push_back(pose);
+		  pose.position.x = xR2;
+		  pose.position.y = yR2;
+		  vpose.push_back(pose);
+		  pose.position.x = Cx;
+		  pose.position.y = Cy;
+		  vpose.push_back(pose);
+		  posearray.poses = vpose;
+		  palm_points_pub_.publish(posearray);
+		}
+
+	    }
+	  //cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
+            cv::imshow("OpenPose ROS", cv_img_ptr_->image);
             cv::waitKey(1); // It displays the image and sleeps at least 1 ms (it usually sleeps ~5-10 msec to display the image)
         }
         else
             op::log("Nullptr or empty datumsPtr found.", op::Priority::High, __LINE__, __FUNCTION__, __FILE__);
     }
+
 };
 
 int openPoseROSTutorialWithFaceAndHands()
@@ -281,7 +364,7 @@ int openPoseROSTutorialWithFaceAndHands()
 
     // User processing
     UserInputClass userInputClass(FLAGS_camera_topic);
-    UserOutputClass userOutputClass;
+    //UserOutputClass userOutputClass;
     while (ros::ok())
     {
         // Push frame
@@ -292,7 +375,7 @@ int openPoseROSTutorialWithFaceAndHands()
             // Pop frame
             std::shared_ptr<std::vector<op::Datum>> datumProcessed;
             if (successfullyEmplaced && opWrapper.waitAndPop(datumProcessed))
-                userOutputClass.display(datumProcessed);
+                userInputClass.display(datumProcessed);
             else
                 op::log("Processed datum could not be emplaced.", op::Priority::High, __LINE__, __FUNCTION__, __FILE__);
         }
