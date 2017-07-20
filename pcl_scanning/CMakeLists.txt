@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(PCL 1.7 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Boost REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
@@ -189,6 +190,6 @@ catkin_package(
 # endif()
 
 add_executable (hand_transform src/hand_transform.cpp)
-target_link_libraries (hand_transform ${OpenCV_LIBS} ${catkin_LIBRARIES})
+target_link_libraries (hand_transform ${Eigen3_LIBS}${OpenCV_LIBS} ${catkin_LIBRARIES})
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)

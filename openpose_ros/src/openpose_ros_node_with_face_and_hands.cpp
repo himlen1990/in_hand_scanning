@@ -241,9 +241,11 @@ class UserInputClass
 	      const auto yR3 = datumsPtr->at(0).handKeypoints[1][baseIndex3 + 1];
 	      const auto scoreR3 = datumsPtr->at(0).handKeypoints[1][baseIndex3 + 2];
 
-	      
-	      float vx= xR2-xR;
-	      float vy= yR2-yR;
+
+	      float midx = (xR2+xR)/2;
+	      float midy = (yR2+yR)/2;
+	      float vx= xR2-midx;
+	      float vy= yR2-midy;
 	      float mag = sqrt(vx*vx +vy*vy);
 	      vx = vx/mag;
 	      vy = vy/mag;
@@ -255,29 +257,29 @@ class UserInputClass
 
 	      if (xR3<xR)
 		{
-		   Cx = xR-vx*10;
-		   Cy = yR-vy*10;
-	      cv::line(cv_img_ptr_->image,cv::Point(int(xR),int(yR)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
-	      cv::line(cv_img_ptr_->image,cv::Point(int(xR),int(yR)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
+		   Cx = midx-vx*10;
+		   Cy = midy-vy*10;
+	      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
+	      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
 
 
 		}
 	      else
 		{
-		   Cx = xR+vx*10;
-		   Cy = yR+vy*10;
-	      cv::line(cv_img_ptr_->image,cv::Point(int(xR),int(yR)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
-	      cv::line(cv_img_ptr_->image,cv::Point(int(xR),int(yR)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
+		   Cx = midx+vx*10;
+		   Cy = midy+vy*10;
+	      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
+	      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
 
 		}
 	      
-	      if(Cx!=-1 && Cy!=-1)
+	      if(Cx>0 && Cy>0)
 		{
 		  geometry_msgs::PoseArray posearray;
 		  std::vector<geometry_msgs::Pose> vpose;
 		  geometry_msgs::Pose pose;
-		  pose.position.x = xR;
-		  pose.position.y = yR;
+		  pose.position.x = midx;
+		  pose.position.y = midy;
 		  vpose.push_back(pose);
 		  pose.position.x = xR2;
 		  pose.position.y = yR2;
