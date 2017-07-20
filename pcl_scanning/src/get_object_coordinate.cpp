@@ -113,3 +113,4 @@ public:
 //first sample object's middle line so this line is z axis
 //z perpandicular with finguer is y and x comes out.
 //the center is between two fingers
+//http://pointclouds.org/blog/gsoc12/cchoi/
