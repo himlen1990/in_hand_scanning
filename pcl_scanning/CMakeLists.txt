@@ -9,7 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_filters pcl_ros rospy
 )
 
-find_package(PCL 1.7 REQUIRED)
+find_package(PCL 1.8 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -191,5 +191,9 @@ catkin_package(
 
 add_executable (hand_transform src/hand_transform.cpp)
 target_link_libraries (hand_transform ${Eigen3_LIBS}${OpenCV_LIBS} ${catkin_LIBRARIES})
+
+add_executable (3D_edge_detection src/3D_edge_detection.cpp)
+target_link_libraries (3D_edge_detection ${PCL_LIBS}${OpenCV_LIBS} ${catkin_LIBRARIES})
+
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
