@@ -255,24 +255,41 @@ class UserInputClass
 	      int Cx = -1;
 	      int Cy = -1;
 
-	      if (xR3<xR)
+	      if (midy > yR2)
 		{
-		   Cx = midx-vx*10;
-		   Cy = midy-vy*10;
-	      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
-	      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
-
-
+		  if (midx>xR3)
+		    {
+		      Cx = midx-vx*10;
+		      Cy = midy-vy*10;
+		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
+		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));	     
+		    }
+		  else
+		    {
+		      Cx = midx+vx*10;
+		      Cy = midy+vy*10;
+		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
+		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
+		    }
 		}
 	      else
 		{
-		   Cx = midx+vx*10;
-		   Cy = midy+vy*10;
-	      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
-	      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
-
+		  if (midx>xR3)
+		    {
+		      Cx = midx+vx*10;
+		      Cy = midy+vy*10;
+		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
+		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));	     
+		    }
+		  else
+		    {
+		      Cx = midx-vx*10;
+		      Cy = midy-vy*10;
+		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
+		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
+		    }
+		  
 		}
-	      
 	      if(Cx>0 && Cy>0)
 		{
 		  geometry_msgs::PoseArray posearray;
@@ -294,7 +311,7 @@ class UserInputClass
 
 	    }
 	  //cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
-            cv::imshow("OpenPose ROS", cv_img_ptr_->image);
+            cv::imshow("OpenPose ROS debug", cv_img_ptr_->image);
             cv::waitKey(1); // It displays the image and sleeps at least 1 ms (it usually sleeps ~5-10 msec to display the image)
         }
         else
