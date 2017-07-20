@@ -216,104 +216,51 @@ class UserInputClass
 	  const auto numberPeopleDetected = datumsPtr->at(0).handKeypoints[0].getSize(0); // = handKeypoints[1].getSize(0)
 	  if(numberPeopleDetected > 0)
 	    {
-	      int part = 0;
-	      int part2 = 9;
-	      int part3 = 1;
+	      int part0 = 4;
+	      int part1 = 8;
+	      int part2 = 12;
 	      int person = 0;
 	      int numberHandParts = 21;
-	      const auto baseIndex = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part);
+	      const auto baseIndex0 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part0);
+	      const auto baseIndex1 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part1);
 	      const auto baseIndex2 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part2);
-	      const auto baseIndex3 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part3);
-	      // Left Hand
-	      const auto xL = datumsPtr->at(0).handKeypoints[0][baseIndex];
-	      const auto yL = datumsPtr->at(0).handKeypoints[0][baseIndex + 1];
-	      const auto scoreL = datumsPtr->at(0).handKeypoints[0][baseIndex + 2];
 	      // Right Hand
-	      const auto xR = datumsPtr->at(0).handKeypoints[1][baseIndex];
-	      const auto yR = datumsPtr->at(0).handKeypoints[1][baseIndex + 1];
-	      const auto scoreR = datumsPtr->at(0).handKeypoints[1][baseIndex + 2];
+	      const auto xR0 = datumsPtr->at(0).handKeypoints[1][baseIndex0];
+	      const auto yR0= datumsPtr->at(0).handKeypoints[1][baseIndex0 + 1];
+	      const auto scoreR0 = datumsPtr->at(0).handKeypoints[1][baseIndex0 + 2];
+
+	      const auto xR1 = datumsPtr->at(0).handKeypoints[1][baseIndex1];
+	      const auto yR1 = datumsPtr->at(0).handKeypoints[1][baseIndex1 + 1];
+	      const auto scoreR1 = datumsPtr->at(0).handKeypoints[1][baseIndex1 + 2];
 
 	      const auto xR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2];
 	      const auto yR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2 + 1];
 	      const auto scoreR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2 + 2];
 
-	      const auto xR3 = datumsPtr->at(0).handKeypoints[1][baseIndex3];
-	      const auto yR3 = datumsPtr->at(0).handKeypoints[1][baseIndex3 + 1];
-	      const auto scoreR3 = datumsPtr->at(0).handKeypoints[1][baseIndex3 + 2];
+
+	      geometry_msgs::PoseArray posearray;
+	      std::vector<geometry_msgs::Pose> vpose;
+	      geometry_msgs::Pose pose;
+	      pose.position.x = xR0;
+	      pose.position.y = yR0;
+	      vpose.push_back(pose);
+	      pose.position.x = xR1;
+	      pose.position.y = yR1;
+	      vpose.push_back(pose);
+	      pose.position.x = xR2;
+	      pose.position.y = yR2;
+	      vpose.push_back(pose);
+	      posearray.header = cv_img_ptr_->header;
+	      posearray.poses = vpose;
+	      palm_points_pub_.publish(posearray);
 
 
-	      float midx = (xR2+xR)/2;
-	      float midy = (yR2+yR)/2;
-	      float vx= xR2-midx;
-	      float vy= yR2-midy;
-	      float mag = sqrt(vx*vx +vy*vy);
-	      vx = vx/mag;
-	      vy = vy/mag;
-	      float temp = vx;
-	      vx = -vy;
-	      vy =temp;
-	      int Cx = -1;
-	      int Cy = -1;
 
-	      if (midy > yR2)
-		{
-		  if (midx>xR3)
-		    {
-		      Cx = midx-vx*10;
-		      Cy = midy-vy*10;
-		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
-		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));	     
-		    }
-		  else
-		    {
-		      Cx = midx+vx*10;
-		      Cy = midy+vy*10;
-		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
-		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
-		    }
-		}
-	      else
-		{
-		  if (midx>xR3)
-		    {
-		      Cx = midx+vx*10;
-		      Cy = midy+vy*10;
-		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
-		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));	     
-		    }
-		  else
-		    {
-		      Cx = midx-vx*10;
-		      Cy = midy-vy*10;
-		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(int(xR2),int(yR2)), cv::Scalar(0,255,255));
-		      cv::line(cv_img_ptr_->image,cv::Point(int(midx),int(midy)),cv::Point(Cx,Cy), cv::Scalar(0,255,255));
-		    }
-		  
-		}
-	      if(Cx>0 && Cy>0)
-		{
-		  geometry_msgs::PoseArray posearray;
-		  std::vector<geometry_msgs::Pose> vpose;
-		  geometry_msgs::Pose pose;
-		  pose.position.x = midx;
-		  pose.position.y = midy;
-		  vpose.push_back(pose);
-		  pose.position.x = xR2;
-		  pose.position.y = yR2;
-		  vpose.push_back(pose);
-		  pose.position.x = Cx;
-		  pose.position.y = Cy;
-		  vpose.push_back(pose);
-		  posearray.header = cv_img_ptr_->header;
-		  posearray.poses = vpose;
-		  palm_points_pub_.publish(posearray);
-		}
-
+	      cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
+	      
+	      cv::waitKey(1); // It displays the image and sleeps at least 1 ms (it usually sleeps ~5-10 msec to display the image)
 	    }
-	  //cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
-            cv::imshow("OpenPose ROS debug", cv_img_ptr_->image);
-            cv::waitKey(1); // It displays the image and sleeps at least 1 ms (it usually sleeps ~5-10 msec to display the image)
-        }
+	}
         else
             op::log("Nullptr or empty datumsPtr found.", op::Priority::High, __LINE__, __FUNCTION__, __FILE__);
     }
