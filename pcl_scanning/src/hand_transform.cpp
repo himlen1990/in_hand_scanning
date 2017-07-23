@@ -10,7 +10,7 @@
 #include <iostream>
 #include <std_msgs/String.h>
 #include <sstream>
-#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <Eigen/Dense>
 
 using namespace std;
