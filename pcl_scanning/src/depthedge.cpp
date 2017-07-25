@@ -6,12 +6,19 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <cv_bridge/cv_bridge.h>
-#include "object_edge_detector.h"
+#include "object_pose_detector.h"
+#include "finger_detection.h"
+#include "finger_position_tracker.h"
 
 using namespace std;
 
+finger_detection fd;
+finger_position_tracker fpt;
+bool tracker_init = false;
+
 void callback(const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD)
 {
+
   cv_bridge::CvImageConstPtr cv_ptrRGB;
     try
       {
@@ -34,13 +41,40 @@ void callback(const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::Image
         return;
       }
 
-    cv::Mat depth = cv_ptrD->image.clone();
+    cv::Mat depth;
+    cv_ptrD->image.copyTo(depth);
     cv::Mat depth_f;
-    depth.convertTo(depth_f,CV_32FC1, 1.0/1000);
 
-    object_edge_detector oed(depth_f,0.3,0.8);
-    oed.detect_edge();
+    cv::Mat RGBImg;
+    cv_ptrRGB->image.copyTo(RGBImg);
+    cv::cvtColor(RGBImg,RGBImg,CV_BGR2RGB);
+
+    if (depth.type()==2)
+      depth.convertTo(depth_f,CV_32FC1, 1.0/1000);
+    else if (depth.type()==5)
+      depth_f = depth;
+    else
+      {
+	cout<<"unknown depth Mat type"<<endl;
+	return;
+      }
+    std::vector<cv::Point> finger_position;
+
+    finger_position = fd.detect(RGBImg);
+
+    if(finger_position.size()>0 && !tracker_init)
+      {
+      fpt.start(RGBImg,finger_position[0],finger_position[1],50,50);
+      tracker_init = true;
+      }
+    if(tracker_init)
+      {
+      finger_position = fpt.update(RGBImg);
+      }
+    object_pose_detector opd(RGBImg,depth_f,0.3,0.8);
+    opd.detect_pose(finger_position);
     cv::waitKey(1);
+
 }
 
 int main(int argc, char** argv)

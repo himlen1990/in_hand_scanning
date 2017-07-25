@@ -53,12 +53,12 @@ public:
 
     pcl::PointCloud < pcl::PointXYZRGB > depth_cloud;
     pcl::fromROSMsg(*points, depth_cloud);
-    int x0 =hand_keypoints->poses[0].position.x;
-    int y0 =hand_keypoints->poses[0].position.y;    
-    int x1 =hand_keypoints->poses[1].position.x;
-    int y1 =hand_keypoints->poses[1].position.y;    
-    int x2 =hand_keypoints->poses[2].position.x;
-    int y2 =hand_keypoints->poses[2].position.y;    
+    int x0 = hand_keypoints->poses[0].position.x;
+    int y0 = hand_keypoints->poses[0].position.y;    
+    int x1 = hand_keypoints->poses[1].position.x;
+    int y1 = hand_keypoints->poses[1].position.y;    
+    int x2 = hand_keypoints->poses[2].position.x;
+    int y2 = hand_keypoints->poses[2].position.y;    
 
     pcl::PointXYZRGB p0,p1,p2;
     p0 = depth_cloud.points[depth_cloud.width * y0 + x0] ;

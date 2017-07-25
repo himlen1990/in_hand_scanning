@@ -5,12 +5,13 @@ project(pcl_scanning)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  roscpp roslib rospack sensor_msgs std_msgs geometry_msgs image_transport tf cv_bridge
+  roscpp roslib rospack sensor_msgs std_msgs geometry_msgs image_transport tf cv3_bridge
   message_filters pcl_ros rospy
 )
 
 find_package(PCL 1.8 REQUIRED)
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 3 REQUIRED PATHS "/home/himlen/opencv3/build")
+#find_package(OpenCV REQUIRED)
 find_package(Boost REQUIRED)
 #find_package(Eigen3 REQUIRED)
 
@@ -34,8 +35,10 @@ ${PROJECT_SOURCE_DIR}/include
 #file(GLOB_RECURSE pcl_scanning_SRC "src/*.cpp")
 
 SET(SRC
-"src/object_edge_detector.cpp"
+"src/object_pose_detector.cpp"
+"src/finger_position_tracker.cpp"
 "src/depthedge.cpp"
+"src/finger_detection.cpp"
 )
 
 SET(LIBS
