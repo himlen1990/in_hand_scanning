@@ -10,7 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(PCL 1.8 REQUIRED)
-find_package(OpenCV 3 REQUIRED PATHS "/home/himlen/opencv3/build")
+find_package(OpenCV 3.2 REQUIRED )#PATHS "/home/himlen/opencv3/build")
 #find_package(OpenCV REQUIRED)
 find_package(Boost REQUIRED)
 #find_package(Eigen3 REQUIRED)
@@ -31,14 +31,15 @@ ${PROJECT_SOURCE_DIR}
 ${PROJECT_SOURCE_DIR}/include
 )
 
-
+message(STATUS "CMAKE_BINARY_DIR:         " ${OpenCV_LIBS}  )
 #file(GLOB_RECURSE pcl_scanning_SRC "src/*.cpp")
 
 SET(SRC
-"src/object_pose_detector.cpp"
+"src/object_pose_tracker.cpp"
 "src/finger_position_tracker.cpp"
-"src/depthedge.cpp"
+"src/system.cpp"
 "src/finger_detection.cpp"
+"src/cam_motion_tracker.cpp"
 )
 
 SET(LIBS
@@ -47,11 +48,11 @@ ${OpenCV_LIBS}
 ${catkin_LIBRARIES}
 )
 
-add_executable (hand_transform src/hand_transform.cpp)
-target_link_libraries (hand_transform ${LIBS})
+#add_executable (hand_transform src/hand_transform.cpp)
+#target_link_libraries (hand_transform ${LIBS})
 
-add_executable (depthedge ${SRC})
-target_link_libraries (depthedge ${LIBS})
+add_executable (system ${SRC})
+target_link_libraries (system ${LIBS})
 
 #add_executable (object_edge_detection src/object_edge_detection.cpp)
 #target_link_libraries (object_edge_detection ${PCL_LIBS}${OpenCV_LIBS} ${catkin_LIBRARIES})

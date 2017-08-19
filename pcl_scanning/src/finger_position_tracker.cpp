@@ -44,7 +44,7 @@ std::vector<cv::Point> finger_position_tracker::update(cv::Mat frame)
       for(unsigned i=0;i<trackers.objects.size();i++)
 	{
 	rectangle( frame, trackers.objects[i], cv::Scalar( 255, 0, 0 ), 2, 1 );
-	cv::Point finger_p(trackers.objects[i].x+trackers.objects[i].width, trackers.objects[i].y+trackers.objects[i].height);
+	cv::Point finger_p(trackers.objects[i].x+trackers.objects[i].width/2, trackers.objects[i].y+trackers.objects[i].height/2);
 	  finger_positions.push_back(finger_p);
 	}
       imshow("debug",frame);

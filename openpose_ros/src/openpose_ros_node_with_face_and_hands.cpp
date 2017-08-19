@@ -151,19 +151,30 @@ class UserInputClass
         image_transport::Subscriber image_sub_;
         cv_bridge::CvImagePtr cv_img_ptr_;
         ros::Publisher palm_points_pub_;
+        ros::Subscriber camera_info_sub;
+        boost::array<double,9> camera_info; 
+  bool get_camera_info;
   
     public:
-        UserInputClass(const std::string& image_topic): it_(nh_)
+  UserInputClass(const std::string& image_topic): it_(nh_),get_camera_info(false)
         {
             // Subscribe to input video feed and publish output video feed
 	  palm_points_pub_ = nh_.advertise<geometry_msgs::PoseArray>("hand_keypoints",1);
             image_sub_ = it_.subscribe(image_topic, 1, &UserInputClass::convertImage, this);
             cv_img_ptr_ = nullptr;
-
+	    camera_info_sub = nh_.subscribe("/camera/depth_registered/camera_info",1, &UserInputClass::camera_info_cb, this);
         }
 
         ~UserInputClass(){}
 
+         void camera_info_cb(const sensor_msgs::CameraInfoPtr& camInfo)
+         {
+	   camera_info = camInfo->K;
+	   get_camera_info = true;
+	   camera_info_sub.shutdown();
+
+	 }
+  
         void convertImage(const sensor_msgs::ImageConstPtr& msg)
         {
             try
@@ -292,21 +303,24 @@ class UserInputClass
 		}
 	      if(Cx>0 && Cy>0)
 		{
-		  geometry_msgs::PoseArray posearray;
-		  std::vector<geometry_msgs::Pose> vpose;
-		  geometry_msgs::Pose pose;
-		  pose.position.x = midx;
-		  pose.position.y = midy;
-		  vpose.push_back(pose);
-		  pose.position.x = xR2;
-		  pose.position.y = yR2;
-		  vpose.push_back(pose);
-		  pose.position.x = Cx;
-		  pose.position.y = Cy;
-		  vpose.push_back(pose);
-		  posearray.header = cv_img_ptr_->header;
-		  posearray.poses = vpose;
-		  palm_points_pub_.publish(posearray);
+		  if(get_camera_info)
+		    {
+		      geometry_msgs::PoseArray posearray;
+		      std::vector<geometry_msgs::Pose> vpose;
+		      geometry_msgs::Pose pose;
+		      pose.position.x = midx;
+		      pose.position.y = midy;
+		      vpose.push_back(pose);
+		      pose.position.x = xR2;
+		      pose.position.y = yR2;
+		      vpose.push_back(pose);
+		      pose.position.x = Cx;
+		      pose.position.y = Cy;
+		      vpose.push_back(pose);
+		      posearray.header = cv_img_ptr_->header;
+		      posearray.poses = vpose;
+		      palm_points_pub_.publish(posearray);
+		    }
 		}
 
 	    }

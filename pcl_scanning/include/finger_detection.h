@@ -19,7 +19,7 @@ class finger_detection{
 
  public:
   finger_detection();
-  std::vector<cv::Point> detect(cv::Mat rgbImg);
+  std::vector<cv::Point2f> detect(cv::Mat rgbImg);
 
 };
 #endif

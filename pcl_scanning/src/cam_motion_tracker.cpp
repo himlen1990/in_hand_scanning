@@ -1,0 +1,148 @@
+#include "cam_motion_tracker.h"
+#include <iostream>
+//get finger color in init func, then detect that color or directly use kcf
+//1.give a bounding box of two fingers, after confirm(press a key), start tracking
+
+cam_motion_tracker::cam_motion_tracker():inlier_threshold_(2.5f),nn_match_ratio_(1.8f),ransac_thresh_(2.5f)
+{
+  orb = ORB::create();
+}
+
+void cam_motion_tracker::start(cv::Mat frame, cv::Rect roi)
+{
+  roi_ = roi;
+  cv::Mat ROI= frame(roi_);
+  first_frame_ = ROI.clone();
+  cv::imshow("init",first_frame_);
+}
+
+vector<Point2f> cam_motion_tracker::Points(vector<KeyPoint> keypoints)
+{
+  vector<Point2f> res;
+  for(unsigned i = 0; i < keypoints.size(); i++) {
+    res.push_back(keypoints[i].pt);
+  }
+  return res;
+}
+
+
+cv::Point3f cam_motion_tracker::unproject(cv::KeyPoint kp, const float z)
+{
+  const float u = kp.pt.x;
+  const float v = kp.pt.y;
+  const float x = (u-cx)*z*invfx;
+  const float y = (v-cy)*z*invfy;
+  cv::Point3f kp3D(x,y,z);
+  return kp3D;
+}
+
+
+Eigen::Matrix4f cam_motion_tracker::update(cv::Mat rgb, cv::Mat depth)
+{
+
+
+  Eigen::Matrix4f P_matrix = Eigen::Matrix4f::Zero();
+  second_frame_ = rgb(roi_);
+
+  //find and match keypoinys
+  orb->detectAndCompute(first_frame_, noArray(), kpts1_, desc1_);
+  orb->detectAndCompute(second_frame_, noArray(), kpts2_, desc2_);
+  BFMatcher matcher(NORM_HAMMING);
+  vector< vector<DMatch> > matches;
+  matcher.knnMatch(desc1_, desc2_, matches, 2);
+
+  vector<KeyPoint> matched1, matched2, inliers1, inliers2;
+  Mat inlier_mask, homography;
+  vector<DMatch> inlier_matches;
+
+  for(unsigned i = 0; i < matches.size(); i++) {
+    if(matches[i][0].distance < nn_match_ratio_ * matches[i][1].distance) {
+      matched1.push_back(kpts1_[matches[i][0].queryIdx]);
+      matched2.push_back(kpts2_[matches[i][0].trainIdx]);
+    }
+  }
+
+  // find good matches using homography
+  if(matched1.size() >= 4) {
+    homography = findHomography(Points(matched1), Points(matched2),
+				RANSAC, ransac_thresh_, inlier_mask);
+  }
+
+  vector<cv::Point2f> image_points;
+  vector<cv::Point3f> model_points;
+
+  for(unsigned i = 0; i < matched1.size(); i++) {
+    if(inlier_mask.at<uchar>(i)) {
+      int new_i = static_cast<int>(inliers1.size());
+      inliers1.push_back(matched1[i]);
+      inliers2.push_back(matched2[i]);
+      inlier_matches.push_back(DMatch(new_i, new_i, 0));
+
+      float z =  depth.at<float>(matched1[i].pt.y,matched1[i].pt.x);
+      if (!isnan(z))
+	{
+	  cv::Point3f Pos = unproject(matched1[i],z);
+	  model_points.push_back(Pos);
+	  image_points.push_back(cv::Point2f(matched2[i].pt.x,matched2[i].pt.y));
+	}
+    }
+  }
+  Mat res;
+  drawMatches(first_frame_, inliers1, second_frame_, inliers2, inlier_matches, res);
+  imshow("res.png", res);
+
+  if(model_points.size()>4)// slove pnp
+    {
+      cv::Mat distCoeffs = cv::Mat::zeros(4, 1, CV_64FC1);
+      cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);
+      cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
+
+      bool correspondence = cv::solvePnP(model_points,image_points,camera_matrix_,distCoeffs,rvec,tvec);
+      cv::Mat _R_matrix = cv::Mat::zeros(3, 3, CV_64FC1);
+      Rodrigues(rvec,_R_matrix);
+      cv::Mat _t_matrix = tvec;
+      float yaw = atan2( _R_matrix.at<double>(2,1),_R_matrix.at<double>(2,2));
+      float pitch = atan2( _R_matrix.at<double>(1,0),_R_matrix.at<double>(1,1));
+      //cout<<"y"<<yaw*57.29<<endl;
+      //cout<<"p"<<pitch*57.29<<endl;
+      cout<<tvec<<endl;
+      P_matrix = set_P_matrix(_R_matrix,_t_matrix);
+    }
+  
+
+  //second_frame_.copyTo(first_frame_);
+
+  return P_matrix;
+}
+
+
+void cam_motion_tracker::set_camera_info(const boost::array<double,9> camera_info)
+{
+  cv::Mat camera_m = cv::Mat::zeros(3, 3, CV_64FC1);
+  fx = camera_info[0];
+  fy = camera_info[4];
+  cx = camera_info[2];
+  cy = camera_info[5];
+  invfx = 1.0f/fx;
+  invfy = 1.0f/fy;
+
+  camera_m.at<double>(0,0) = fx;
+  camera_m.at<double>(1,1) = fy;
+  camera_m.at<double>(0,2) = cx;
+  camera_m.at<double>(1,2) = cy;
+  camera_m.at<double>(2,2) = 1;
+  camera_matrix_ = camera_m;
+}
+
+
+Eigen::Matrix4f cam_motion_tracker::set_P_matrix( const cv::Mat &R_matrix, const cv::Mat &t_matrix)
+{
+  // Rotation-Translation Matrix Definition
+  Eigen::Matrix4f _P_matrix = Eigen::Matrix4f::Zero();
+  _P_matrix<< 
+  R_matrix.at<double>(0,0),R_matrix.at<double>(0,1),R_matrix.at<double>(0,2),t_matrix.at<double>(0),
+  R_matrix.at<double>(1,0),R_matrix.at<double>(1,1),R_matrix.at<double>(1,2),t_matrix.at<double>(1),
+  R_matrix.at<double>(2,0),R_matrix.at<double>(2,1),R_matrix.at<double>(2,2),t_matrix.at<double>(2),
+    0, 0, 0, 1;
+  return _P_matrix;
+}

@@ -153,7 +153,7 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(${PROJECT_NAME}_node src/openpose_ros_node.cpp)
 add_executable(${PROJECT_NAME}_node_with_face_and_hands src/openpose_ros_node_with_face_and_hands.cpp)
-add_executable(${PROJECT_NAME}_node_finger src/openpose_ros_node_finger.cpp)
+add_executable(${PROJECT_NAME}_node_finger src/openpose_ros_node_finger_points.cpp)
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use

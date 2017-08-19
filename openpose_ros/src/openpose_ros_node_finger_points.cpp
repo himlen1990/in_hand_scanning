@@ -7,7 +7,7 @@
 #include <sensor_msgs/image_encodings.h>
 #include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/Pose.h>
-
+#include <typeinfo>
 #include <opencv2/core/core.hpp> // cv::Mat & cv::Size
 
 // ------------------------- OpenPose Library ROS Tutorial -------------------------
@@ -151,19 +151,30 @@ class UserInputClass
         image_transport::Subscriber image_sub_;
         cv_bridge::CvImagePtr cv_img_ptr_;
         ros::Publisher palm_points_pub_;
+        ros::Subscriber camera_info_sub;
+        boost::array<double,9> camera_info; 
+  bool get_camera_info;
   
     public:
-        UserInputClass(const std::string& image_topic): it_(nh_)
+  UserInputClass(const std::string& image_topic): it_(nh_),get_camera_info(false)
         {
             // Subscribe to input video feed and publish output video feed
 	  palm_points_pub_ = nh_.advertise<geometry_msgs::PoseArray>("hand_keypoints",1);
             image_sub_ = it_.subscribe(image_topic, 1, &UserInputClass::convertImage, this);
             cv_img_ptr_ = nullptr;
-
+	    camera_info_sub = nh_.subscribe("/camera/depth_registered/camera_info",1, &UserInputClass::camera_info_cb, this);
         }
 
         ~UserInputClass(){}
 
+         void camera_info_cb(const sensor_msgs::CameraInfoPtr& camInfo)
+         {
+	   camera_info = camInfo->K;
+	   get_camera_info = true;
+	   camera_info_sub.shutdown();
+
+	 }
+  
         void convertImage(const sensor_msgs::ImageConstPtr& msg)
         {
             try
@@ -216,55 +227,44 @@ class UserInputClass
 	  const auto numberPeopleDetected = datumsPtr->at(0).handKeypoints[0].getSize(0); // = handKeypoints[1].getSize(0)
 	  if(numberPeopleDetected > 0)
 	    {
-	      int part0 = 4;
-	      int part1 = 8;
-	      int part2 = 12;
+	      int numberHandParts = 21;	      
+	      std::vector<float> xRv;
+	      std::vector<float> yRv;
+	      std::vector<float> scoreRv;
+	      for(int i=0; i<numberHandParts*3; i=i+3)
+		{
+		  const auto xR = datumsPtr->at(0).handKeypoints[1][i];
+		  const auto yR = datumsPtr->at(0).handKeypoints[1][i+1];
+		  const auto scoreR = datumsPtr->at(0).handKeypoints[1][i + 2];
+		  xRv.push_back(xR);
+		  yRv.push_back(yR);
+		  scoreRv.push_back(scoreR);
+		}
+	      
+	      for(int i=0; i<xRv.size(); i++)
+		{
+		  if(scoreRv[i]>0.6)
+		    cv::circle(cv_img_ptr_->image, cv::Point(int(xRv[i]),int(yRv[i])),5, cv::Scalar(255,100,255), 3);
+		}
+	      int part1 = 4;
+	      int part2 = 8;
+	      int part3 = 12;
 	      int person = 0;
-	      int numberHandParts = 21;
-	      //std::vector<>
-	      for(int i=0; i<20; i++)
-		
-	      const auto baseIndex0 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part0);
+
 	      const auto baseIndex1 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part1);
 	      const auto baseIndex2 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part2);
+	      const auto baseIndex3 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part3);
 
-	      // Right Hand
-	      const auto xR0 = datumsPtr->at(0).handKeypoints[1][baseIndex0];
-	      const auto yR0= datumsPtr->at(0).handKeypoints[1][baseIndex0 + 1];
-	      const auto scoreR0 = datumsPtr->at(0).handKeypoints[1][baseIndex0 + 2];
-
-	      const auto xR1 = datumsPtr->at(0).handKeypoints[1][baseIndex1];
-	      const auto yR1 = datumsPtr->at(0).handKeypoints[1][baseIndex1 + 1];
-	      const auto scoreR1 = datumsPtr->at(0).handKeypoints[1][baseIndex1 + 2];
-
-	      const auto xR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2];
-	      const auto yR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2 + 1];
-	      const auto scoreR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2 + 2];
-
-
-	      geometry_msgs::PoseArray posearray;
-	      std::vector<geometry_msgs::Pose> vpose;
-	      geometry_msgs::Pose pose;
-	      pose.position.x = xR0;
-	      pose.position.y = yR0;
-	      vpose.push_back(pose);
-	      pose.position.x = xR1;
-	      pose.position.y = yR1;
-	      vpose.push_back(pose);
-	      pose.position.x = xR2;
-	      pose.position.y = yR2;
-	      vpose.push_back(pose);
-	      posearray.header = cv_img_ptr_->header;
-	      posearray.poses = vpose;
-	      palm_points_pub_.publish(posearray);
-
-
-
-	      cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
+	      // Left Hand
+	      const auto xL = datumsPtr->at(0).handKeypoints[0][baseIndex1];
+	      const auto yL = datumsPtr->at(0).handKeypoints[0][baseIndex1 + 1];
+	      const auto scoreL = datumsPtr->at(0).handKeypoints[0][baseIndex1 + 2];
 	      
-	      cv::waitKey(1); // It displays the image and sleeps at least 1 ms (it usually sleeps ~5-10 msec to display the image)
 	    }
-	}
+	  //cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
+            cv::imshow("OpenPose ROS debug", cv_img_ptr_->image);
+            cv::waitKey(1); // It displays the image and sleeps at least 1 ms (it usually sleeps ~5-10 msec to display the image)
+        }
         else
             op::log("Nullptr or empty datumsPtr found.", op::Priority::High, __LINE__, __FUNCTION__, __FILE__);
     }
