@@ -160,7 +160,7 @@ public:
 	if(camera_info_k[0]!=0)
 	  {
 	    object_pose_tracker opt(RGBImg,depth_f,0.3,0.8,camera_info_k);
-	    cout<<"!!!!"<<endl;
+
 	    cmt.set_camera_info(camera_info_k);
 
 	    if (width>110 && height > 100 && opt.init_pose(finger_position)) 

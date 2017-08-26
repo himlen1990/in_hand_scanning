@@ -1,46 +1,5 @@
-#define USE_CAFFE
+#include "hand_keypoint_detector.h"
 
-#include <iostream>
-#include <ros/ros.h>
-#include <image_transport/image_transport.h>
-#include <cv_bridge/cv_bridge.h>
-#include <sensor_msgs/image_encodings.h>
-#include <geometry_msgs/PoseArray.h>
-#include <geometry_msgs/Pose.h>
-
-#include <opencv2/core/core.hpp> // cv::Mat & cv::Size
-
-// ------------------------- OpenPose Library ROS Tutorial -------------------------
-// Asynchronous mode: ideal for fast prototyping when performance is not an issue. The user emplaces/pushes and pops frames from the OpenPose wrapper when he desires to.
-
-// This example shows the user how to use the OpenPose wrapper class:
-    // 1. Extract and render keypoint / heatmap / PAF of that image
-    // 2. Save the results on disc
-    // 3. Display the rendered pose
-    // Everything in a multi-thread scenario
-// In addition to the previous OpenPose modules, we also need to use:
-    // 1. `core` module:
-        // For the Array<float> class that the `pose` module needs
-        // For the Datum struct that the `thread` module sends between the queues
-    // 2. `utilities` module: for the error & logging functions, i.e. op::error & op::log respectively
-// This file should only be used for the user to take specific examples.
-
-// C++ std library dependencies
-#include <chrono> // `std::chrono::` functions and classes, e.g. std::chrono::milliseconds
-#include <string>
-#include <thread> // std::this_thread
-#include <vector>
-// Other 3rdparty dependencies
-#include <gflags/gflags.h> // DEFINE_bool, DEFINE_int32, DEFINE_int64, DEFINE_uint64, DEFINE_double, DEFINE_string
-#include <glog/logging.h> // google::InitGoogleLogging
-
-// OpenPose dependencies
-#include <openpose/headers.hpp>
-
-// See all the available parameter options withe the `--help` flag. E.g. `./build/examples/openpose/openpose.bin --help`.
-// Note: This command will show you flags for other unnecessary 3rdparty files. Check only the flags for the OpenPose
-// executable. E.g. for `openpose.bin`, look for `Flags from examples/openpose/openpose.cpp:`.
-// Debugging
 DEFINE_int32(logging_level,             4,              "The logging level. Integer in the range [0, 255]. 0 will output any log() message, while"
                                                         " 255 will not output any. Current OpenPose library messages are in the range 0-4: 1 for"
                                                         " low priority messages and 4 for important ones.");
@@ -77,12 +36,7 @@ DEFINE_bool(heatmaps_add_bkg,           false,          "Same functionality as `
 DEFINE_bool(heatmaps_add_PAFs,          false,          "Same functionality as `add_heatmaps_parts`, but adding the PAFs.");
 DEFINE_int32(heatmaps_scale,            2,              "Set 0 to scale op::Datum::poseHeatMaps in the range [0,1], 1 for [-1,1]; and 2 for integer"
                                                         " rounded [0,255].");
-// OpenPose Face
-DEFINE_bool(face,                       false,           "Enables face keypoint detection. It will share some parameters from the body pose, e.g."
-                                                        " `model_folder`.");
-DEFINE_string(face_net_resolution,      "368x368",      "Multiples of 16. Analogous to `net_resolution` but applied to the face keypoint detector."
-                                                        " 320x320 usually works fine while giving a substantial speed up when multiple faces on the"
-                                                        " image.");
+
 // OpenPose Hand
 DEFINE_bool(hand,                       true,           "Enables hand keypoint detection. It will share some parameters from the body pose, e.g."
                                                         " `model_folder`.");
@@ -114,12 +68,6 @@ DEFINE_double(alpha_pose,               0.6,            "Blending factor (range 
                                                         " hide it. Only valid for GPU rendering.");
 DEFINE_double(alpha_heatmap,            0.7,            "Blending factor (range 0-1) between heatmap and original frame. 1 will only show the"
                                                         " heatmap, 0 will only show the frame. Only valid for GPU rendering.");
-// OpenPose Rendering Face
-DEFINE_double(face_render_threshold,    0.4,            "Analogous to `render_threshold`, but applied to the face keypoints.");
-DEFINE_int32(face_render,               -1,             "Analogous to `render_pose` but applied to the face. Extra option: -1 to use the same"
-                                                        " configuration that `render_pose` is using.");
-DEFINE_double(face_alpha_pose,          0.6,            "Analogous to `alpha_pose` but applied to face.");
-DEFINE_double(face_alpha_heatmap,       0.7,            "Analogous to `alpha_heatmap` but applied to face.");
 // OpenPose Rendering Hand
 DEFINE_double(hand_render_threshold,    0.2,            "Analogous to `render_threshold`, but applied to the hand keypoints.");
 DEFINE_int32(hand_render,               -1,             "Analogous to `render_pose` but applied to the hand. Extra option: -1 to use the same"
@@ -143,44 +91,80 @@ DEFINE_string(write_heatmaps_format,    "png",          "File extension and form
                                                         " Recommended `png` or any compressed and lossless format.");
 
 // This worker will just subscribe to the image topic specified above.
-class UserInputClass
-{
-    private:
-        ros::NodeHandle nh_;
-        image_transport::ImageTransport it_;
-        image_transport::Subscriber image_sub_;
-        cv_bridge::CvImagePtr cv_img_ptr_;
-        ros::Publisher palm_points_pub_;
-  
-    public:
-        UserInputClass(const std::string& image_topic): it_(nh_)
+hand_keypoint_detector::hand_keypoint_detector(const std::string& image_topic): get_camera_info(false),kinect(true),init_flag(false)
         {
             // Subscribe to input video feed and publish output video feed
-	  palm_points_pub_ = nh_.advertise<geometry_msgs::PoseArray>("hand_keypoints",1);
-            image_sub_ = it_.subscribe(image_topic, 1, &UserInputClass::convertImage, this);
-            cv_img_ptr_ = nullptr;
+	  hand_keypoints_pub_ = nh_.advertise<open_in_hand_scanning::keypoint>("hand_keypoints",1);
+	  //image_sub_ = it_.subscribe(image_topic, 1, &hand_keypoint_detector::convertImage, this);
+	  image1_sub.subscribe(nh_, "/camera/rgb/image_rect_color", 1);
+	  image2_sub.subscribe(nh_, "/camera/depth_registered/image_raw", 1);
+	  sync_input_2_ = new message_filters::Synchronizer<message_filters::sync_policies::ApproximateTime< sensor_msgs::Image,sensor_msgs::Image > >(10);
+	  sync_input_2_->connectInput(image1_sub,image2_sub);
+	  sync_input_2_->registerCallback(boost::bind(&hand_keypoint_detector::convertImage, this, _1, _2));
 
+	    camera_info_sub = nh_.subscribe("/camera/depth_registered/camera_info",1, &hand_keypoint_detector::camera_info_cb, this);
+	    
         }
 
-        ~UserInputClass(){}
+void hand_keypoint_detector::camera_info_cb(const sensor_msgs::CameraInfoPtr& caminfo)
+{
+  
+  camera_info = caminfo->K;
+  cmt.set_camera_info(camera_info);
+  get_camera_info = true;
+  camera_info_sub.shutdown();
+}
 
-        void convertImage(const sensor_msgs::ImageConstPtr& msg)
-        {
-            try
-            {
-                cv_img_ptr_ = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-            }
-            catch (cv_bridge::Exception& e)
-            {
-                ROS_ERROR("cv_bridge exception: %s", e.what());
-                return;
-            }
-        }
 
-        std::shared_ptr<std::vector<op::Datum>> createDatum()
-        {
+  
+void hand_keypoint_detector::convertImage(const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD)
+{
+  cv_bridge::CvImageConstPtr cv_ptrRGB;
+  try
+    {
+      cv_ptrRGB = cv_bridge::toCvShare(msgRGB);
+    }
+  catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return;
+    }
+  cv_ptrRGB->image.copyTo(rgbImg_);
+  if(!kinect)
+    cv::cvtColor(rgbImg_,rgbImg_,CV_BGR2RGB);
+
+  cv_bridge::CvImageConstPtr cv_ptrD;
+    try
+      {
+        cv_ptrD = cv_bridge::toCvShare(msgD);
+      }
+    catch (cv_bridge::Exception& e)
+      {
+        ROS_ERROR("cv_bridge exception: %s", e.what());
+        return;
+      }
+    cv::Mat depth;
+    cv_ptrD->image.copyTo(depth);
+    cv::Mat depth_f;
+
+    if (depth.type()==2)
+      depth.convertTo(depth_f_,CV_32FC1, 1.0/1000);
+    else if (depth.type()==5)
+      depth_f_ = depth;
+    else
+      {
+        cout<<"unknown depth Mat type"<<endl;
+        return;
+      }
+
+
+}
+
+std::shared_ptr<std::vector<op::Datum>> hand_keypoint_detector::createDatum()
+            {
             // Close program when empty frame
-            if (cv_img_ptr_ == nullptr)
+	      //if (cv_img_ptr_ == nullptr)
+	      if(rgbImg_.empty())
             {
                 return nullptr;
             }
@@ -192,22 +176,18 @@ class UserInputClass
                 auto& datum = datumsPtr->at(0);
 
                 // Fill datum
-                datum.cvInputData = cv_img_ptr_->image;
+                datum.cvInputData = rgbImg_;//cv_img_ptr_->image;
 
                 return datumsPtr;
             }
         }
 
-        cv_bridge::CvImagePtr& getCvImagePtr()
-        {
-            return cv_img_ptr_;
-        }
-
 
 // This worker will just display the result
 
-    void display(const std::shared_ptr<std::vector<op::Datum>>& datumsPtr)
+std::vector<std::vector<float> > hand_keypoint_detector::get_keypoints(const std::shared_ptr<std::vector<op::Datum>>& datumsPtr)
     {
+      std::vector<std::vector<float> > keypoint_result;
         // User's displaying/saving/other processing here
             // datum.cvOutputData: rendered frame with pose or heatmaps
             // datum.poseKeypoints: Array<float> with the estimated pose
@@ -216,55 +196,70 @@ class UserInputClass
 	  const auto numberPeopleDetected = datumsPtr->at(0).handKeypoints[0].getSize(0); // = handKeypoints[1].getSize(0)
 	  if(numberPeopleDetected > 0)
 	    {
-	      int part0 = 4;
-	      int part1 = 8;
-	      int part2 = 12;
-	      int person = 0;
-	      int numberHandParts = 21;
-	      const auto baseIndex0 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part0);
-	      const auto baseIndex1 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part1);
-	      const auto baseIndex2 = datumsPtr->at(0).handKeypoints[0].getSize(2)*(person*numberHandParts + part2);
-	      // Right Hand
-	      const auto xR0 = datumsPtr->at(0).handKeypoints[1][baseIndex0];
-	      const auto yR0= datumsPtr->at(0).handKeypoints[1][baseIndex0 + 1];
-	      const auto scoreR0 = datumsPtr->at(0).handKeypoints[1][baseIndex0 + 2];
+	      int numberHandParts = 21;	      
+	      std::vector<float> xRv;
+	      std::vector<float> yRv;	     
+	      std::vector<float> scoreRv;
+	      //std::vector<cv::Point> keypoint2D;
+	      std::vector<point_with_score> keypoint2D;
+	      for(int i=15; i<(numberHandParts-5)*3; i=i+3)
+		{
+		  // if(i!=5*3 && i!=9*3 && i!=13*3 && i!=17*3)
+		    //&& i!=4*3 && i!=8*3 && i!=12*3 && i!=16*3 && i!=20*3)
+		    //{
+		  const auto xR = datumsPtr->at(0).handKeypoints[1][i];
+		  const auto yR = datumsPtr->at(0).handKeypoints[1][i+1];
+		  const auto scoreR = datumsPtr->at(0).handKeypoints[1][i + 2];
+		  xRv.push_back(xR);
+		  yRv.push_back(yR);
+		  scoreRv.push_back(scoreR);
+		  keypoint2D.push_back(point_with_score(cv::Point2f(xR,yR),scoreR));
+		  //}
+		}
+	      keypoint_result.push_back(xRv);
+	      keypoint_result.push_back(yRv);
+	      keypoint_result.push_back(scoreRv);
+	      /*
+	      open_in_hand_scanning::keypoint kp;
+	      kp.keypoint_x = xRv;
+	      kp.keypoint_y = yRv;
+	      kp.keypoint_score = scoreRv;
+	      hand_keypoints_pub_.publish(kp);
+	      */
+	      for(int i=0; i<xRv.size(); i++)
+		{
+		  if(scoreRv[i]>0.6)
+		    cv::circle(rgbImg_, cv::Point(int(xRv[i]),int(yRv[i])),5, cv::Scalar(255,100,255), 3);
+		}
+	      cv::imshow("OpenPose ROS debug", rgbImg_);
+	      cv::waitKey(1);
+	    
+#if 1
 
-	      const auto xR1 = datumsPtr->at(0).handKeypoints[1][baseIndex1];
-	      const auto yR1 = datumsPtr->at(0).handKeypoints[1][baseIndex1 + 1];
-	      const auto scoreR1 = datumsPtr->at(0).handKeypoints[1][baseIndex1 + 2];
-
-	      const auto xR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2];
-	      const auto yR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2 + 1];
-	      const auto scoreR2 = datumsPtr->at(0).handKeypoints[1][baseIndex2 + 2];
-
-
-	      geometry_msgs::PoseArray posearray;
-	      std::vector<geometry_msgs::Pose> vpose;
-	      geometry_msgs::Pose pose;
-	      pose.position.x = xR0;
-	      pose.position.y = yR0;
-	      vpose.push_back(pose);
-	      pose.position.x = xR1;
-	      pose.position.y = yR1;
-	      vpose.push_back(pose);
-	      pose.position.x = xR2;
-	      pose.position.y = yR2;
-	      vpose.push_back(pose);
-	      posearray.header = cv_img_ptr_->header;
-	      posearray.poses = vpose;
-	      palm_points_pub_.publish(posearray);
-
-
-
-	  cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
-
-            cv::waitKey(1); // It displays the image and sleeps at least 1 ms (it usually sleeps ~5-10 msec to display the image)
+	      if(!init_flag)	       
+	      	{
+		  cout<<" wait for init"<<endl;
+		  if(cmt.init(rgbImg_,depth_f_,keypoint2D))
+		    init_flag = true;
+		}
+	      else
+		{
+		  cout<<"regist"<<endl;
+		cmt.regist(rgbImg_,depth_f_,keypoint2D);
+		}
+#endif	      
+	    }
+	  //cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
+	  
+	    
         }
         else
             op::log("Nullptr or empty datumsPtr found.", op::Priority::High, __LINE__, __FUNCTION__, __FILE__);
+	
+	return keypoint_result;
     }
 
-};
+
 
 int openPoseROSTutorialWithFaceAndHands()
 {
@@ -281,8 +276,7 @@ int openPoseROSTutorialWithFaceAndHands()
     const auto outputSize = op::flagsToPoint(FLAGS_resolution, "1280x720");
     // netInputSize
     const auto netInputSize = op::flagsToPoint(FLAGS_net_resolution, "656x368");
-    // faceNetInputSize
-    const auto faceNetInputSize = op::flagsToPoint(FLAGS_face_net_resolution, "368x368 (multiples of 16)");
+
     // handNetInputSize
     const auto handNetInputSize = op::flagsToPoint(FLAGS_hand_net_resolution, "368x368 (multiples of 16)");
     // poseModel
@@ -305,9 +299,7 @@ int openPoseROSTutorialWithFaceAndHands()
                                                   !FLAGS_disable_blending, (float)FLAGS_alpha_pose,
                                                   (float)FLAGS_alpha_heatmap, FLAGS_part_to_show, FLAGS_model_folder,
                                                   heatMapTypes, heatMapScale, (float)FLAGS_render_threshold};
-    // Face configuration (use op::WrapperStructFace{} to disable it)
-    const op::WrapperStructFace wrapperStructFace{FLAGS_face, faceNetInputSize, op::flagsToRenderMode(FLAGS_face_render, FLAGS_render_pose),
-                                                  (float)FLAGS_face_alpha_pose, (float)FLAGS_face_alpha_heatmap, (float)FLAGS_face_render_threshold};
+
     // Hand configuration (use op::WrapperStructHand{} to disable it)
     const op::WrapperStructHand wrapperStructHand{FLAGS_hand, handNetInputSize, FLAGS_hand_scale_number, (float)FLAGS_hand_scale_range,
                                                   FLAGS_hand_tracking, op::flagsToRenderMode(FLAGS_hand_render, FLAGS_render_pose),
@@ -321,7 +313,7 @@ int openPoseROSTutorialWithFaceAndHands()
                                                       FLAGS_write_coco_json, FLAGS_write_images, FLAGS_write_images_format, FLAGS_write_video,
                                                       FLAGS_write_heatmaps, FLAGS_write_heatmaps_format};
     // Configure wrapper
-    opWrapper.configure(wrapperStructPose, wrapperStructFace, wrapperStructHand, op::WrapperStructInput{}, wrapperStructOutput);
+    opWrapper.configure(wrapperStructPose, wrapperStructHand, op::WrapperStructInput{}, wrapperStructOutput);
     // Set to single-thread running (e.g. for debugging purposes)
     // opWrapper.disableMultiThreading();
 
@@ -329,19 +321,20 @@ int openPoseROSTutorialWithFaceAndHands()
     opWrapper.start();
 
     // User processing
-    UserInputClass userInputClass(FLAGS_camera_topic);
+    hand_keypoint_detector hkd(FLAGS_camera_topic);
+
     //UserOutputClass userOutputClass;
     while (ros::ok())
     {
         // Push frame
-        auto datumToProcess = userInputClass.createDatum();
+        auto datumToProcess = hkd.createDatum();
         if (datumToProcess != nullptr)
         {
             auto successfullyEmplaced = opWrapper.waitAndEmplace(datumToProcess);
             // Pop frame
             std::shared_ptr<std::vector<op::Datum>> datumProcessed;
             if (successfullyEmplaced && opWrapper.waitAndPop(datumProcessed))
-                userInputClass.display(datumProcessed);
+                hkd.get_keypoints(datumProcessed);
             else
                 op::log("Processed datum could not be emplaced.", op::Priority::High, __LINE__, __FUNCTION__, __FILE__);
         }
@@ -367,7 +360,7 @@ int main(int argc, char *argv[])
     google::InitGoogleLogging("openpose_ros_node_with_face_and_hands");
 
     // Parsing command line flags
-    gflags::ParseCommandLineFlags(&argc, &argv, true);
+    //gflags::ParseCommandLineFlags(&argc, &argv, true);
 
     // Initializing ros
     ros::init(argc, argv, "openpose_ros_node_with_face_and_hands");
