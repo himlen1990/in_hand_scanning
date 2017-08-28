@@ -110,9 +110,32 @@ void hand_keypoint_detector::camera_info_cb(const sensor_msgs::CameraInfoPtr& ca
 {
   
   camera_info = caminfo->K;
-  cmt.set_camera_info(camera_info);
+
   get_camera_info = true;
+
+
+  fx = camera_info[0];
+  fy = camera_info[4];
+  cx = camera_info[2];
+  cy = camera_info[5];
+  invfx = 1.0f/fx;
+  invfy = 1.0f/fy;
+
+
   camera_info_sub.shutdown();
+
+
+}
+
+
+Eigen::Vector3f hand_keypoint_detector::unproject(cv::Point kp, const float z)
+{
+  const float u = kp.x;
+  const float v = kp.y;
+  const float x = (u-cx)*z*invfx;
+  const float y = (v-cy)*z*invfy;
+  Eigen::Vector3f kp3D(x,y,z);
+  return kp3D;
 }
 
 
@@ -187,10 +210,11 @@ std::shared_ptr<std::vector<op::Datum>> hand_keypoint_detector::createDatum()
 
 std::vector<std::vector<float> > hand_keypoint_detector::get_keypoints(const std::shared_ptr<std::vector<op::Datum>>& datumsPtr)
     {
+
       std::vector<std::vector<float> > keypoint_result;
-        // User's displaying/saving/other processing here
-            // datum.cvOutputData: rendered frame with pose or heatmaps
-            // datum.poseKeypoints: Array<float> with the estimated pose
+      // User's displaying/saving/other processing here
+      // datum.cvOutputData: rendered frame with pose or heatmaps
+      // datum.poseKeypoints: Array<float> with the estimated pose
         if (datumsPtr != nullptr && !datumsPtr->empty())
         {
 	  const auto numberPeopleDetected = datumsPtr->at(0).handKeypoints[0].getSize(0); // = handKeypoints[1].getSize(0)
@@ -200,22 +224,33 @@ std::vector<std::vector<float> > hand_keypoint_detector::get_keypoints(const std
 	      std::vector<float> xRv;
 	      std::vector<float> yRv;	     
 	      std::vector<float> scoreRv;
-	      //std::vector<cv::Point> keypoint2D;
-	      std::vector<point_with_score> keypoint2D;
-	      for(int i=15; i<(numberHandParts-5)*3; i=i+3)
+	      std::vector<hand_keypoint> rotation_estimate_keypoint;
+	      std::vector<hand_keypoint> touch_detection_keypoint;
+	      for(int i=0; i<numberHandParts*3; i=i+3)
+	  
 		{
-		  // if(i!=5*3 && i!=9*3 && i!=13*3 && i!=17*3)
-		    //&& i!=4*3 && i!=8*3 && i!=12*3 && i!=16*3 && i!=20*3)
-		    //{
-		  const auto xR = datumsPtr->at(0).handKeypoints[1][i];
-		  const auto yR = datumsPtr->at(0).handKeypoints[1][i+1];
-		  const auto scoreR = datumsPtr->at(0).handKeypoints[1][i + 2];
-		  xRv.push_back(xR);
-		  yRv.push_back(yR);
-		  scoreRv.push_back(scoreR);
-		  keypoint2D.push_back(point_with_score(cv::Point2f(xR,yR),scoreR));
-		  //}
+		  if( i == 3*3 || i == 4*3 || i == 7*3 || i == 8*3)
+		    {
+		      const auto xR = datumsPtr->at(0).handKeypoints[1][i];
+		      const auto yR = datumsPtr->at(0).handKeypoints[1][i+1];
+		      const auto scoreR = datumsPtr->at(0).handKeypoints[1][i + 2];
+		      xRv.push_back(xR);
+		      yRv.push_back(yR);
+		      scoreRv.push_back(scoreR);
+		      
+		      hand_keypoint hkp(cv::Point2f(xR,yR),scoreR);
+		      float z =  depth_f_.at<float>(yR, xR);
+		      Eigen::Vector3f Pos = unproject(cv::Point(xR,yR),z);
+		      hkp.set_xyz(Pos);
+		      touch_detection_keypoint.push_back(hkp);
+
+		      if(i == 3*3 || i == 7*3)
+			{
+			  rotation_estimate_keypoint.push_back(hkp);
+			}
+		    }
 		}
+
 	      keypoint_result.push_back(xRv);
 	      keypoint_result.push_back(yRv);
 	      keypoint_result.push_back(scoreRv);
@@ -228,29 +263,32 @@ std::vector<std::vector<float> > hand_keypoint_detector::get_keypoints(const std
 	      */
 	      for(int i=0; i<xRv.size(); i++)
 		{
-		  if(scoreRv[i]>0.6)
+		  if(scoreRv[i]>0.2)
+		    {
 		    cv::circle(rgbImg_, cv::Point(int(xRv[i]),int(yRv[i])),5, cv::Scalar(255,100,255), 3);
+		    }
 		}
-	      cv::imshow("OpenPose ROS debug", rgbImg_);
-	      cv::waitKey(1);
 	    
-#if 1
+	      td.detect(rgbImg_,touch_detection_keypoint);
 
-	      if(!init_flag)	       
+	      if(!init_flag)	       //if touching-> add keyframe
 	      	{
 		  cout<<" wait for init"<<endl;
-		  if(cmt.init(rgbImg_,depth_f_,keypoint2D))
+		  if(cmt.add_keyframe(rgbImg_,depth_f_,rotation_estimate_keypoint))
 		    init_flag = true;
 		}
-	      else
+#if 1
+	      else   //if collect enough keyframe > 5?, start registration
 		{
-		  cout<<"regist"<<endl;
-		cmt.regist(rgbImg_,depth_f_,keypoint2D);
+		  //cout<<"regist"<<endl;
+		  cmt.regist(rgbImg_,depth_f_, rotation_estimate_keypoint);
 		}
 #endif	      
 	    }
 	  //cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
 	  
+	  cv::imshow("OpenPose ROS debug", rgbImg_);
+	  cv::waitKey(1);
 	    
         }
         else

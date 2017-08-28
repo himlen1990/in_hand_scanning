@@ -29,6 +29,9 @@
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include "cam_motion_tracker.h"
+#include "hand_keypoint.h"
+
+#include "touch_detector.h"
 
 class hand_keypoint_detector
 {
@@ -49,8 +52,16 @@ class hand_keypoint_detector
   bool kinect;
 
   cam_motion_tracker cmt;
+  touch_detector td;
 
   bool init_flag;
+
+  float fx;
+  float fy;
+  float cx;
+  float cy;
+  float invfx;
+  float invfy;
   
   //------------------------------------
 #if 0
@@ -88,5 +99,6 @@ class hand_keypoint_detector
   std::vector<std::vector<float> > get_keypoints(const std::shared_ptr<std::vector<op::Datum>>& datumsPtr);
   std::shared_ptr<std::vector<op::Datum>> createDatum();
 
+  Eigen::Vector3f unproject(cv::Point kp ,const float z);
 };
 #endif

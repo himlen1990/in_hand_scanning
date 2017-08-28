@@ -6,6 +6,7 @@
 #include <vector>
 #include <iostream>
 #include <boost/array.hpp>
+//#include <Eigen/Dense>
 #include <eigen3/Eigen/Dense>
 #include "hand_keypoint.h"
 #include "keyframe.h"
@@ -17,14 +18,19 @@ class cam_motion_tracker
 {
  private:
 
-  std::vector<keyframe> keyframe_pair_;
+  std::vector<keyframe> keyframes_;
 
   cv::Mat first_frame_rgb_;
   cv::Mat first_frame_depth_;
   cv::Mat second_frame_;
 
-  cv::Point3f p1,med;
   
+  float fx;
+  float fy;
+  float cx;
+  float cy;
+  float invfx;
+  float invfy;
   
   bool test_flag;
 
@@ -34,15 +40,17 @@ class cam_motion_tracker
 
   cv::Mat camera_matrix_;
   
+  std::vector<hand_keypoint> hand_keypoints_model_;
   
  public:
   cam_motion_tracker();
-  bool add_keyframe(cv::Mat rgb, cv::Mat depth, std::vector<hand_keypoint> keypoint2D);
+  bool init(cv::Mat rgb, cv::Mat depth, std::vector<hand_keypoint> keypoint2D);
   Eigen::Matrix4f regist(cv::Mat rgb, cv::Mat depth, std::vector<hand_keypoint> keypoint2D);
 
+  cv::Point3f unproject(cv::Point kp ,const float z);
 
-
-
+  void add_keyframe(cv::Mat rgb, cv::Mat depth, std::vector<hand_keypoint> keypoint2D);
+  void set_camera_info(const boost::array<double,9> camera_info);
   Eigen::Matrix4f set_P_matrix( const cv::Mat &R_matrix, const cv::Mat &t_matrix);
 };
 
