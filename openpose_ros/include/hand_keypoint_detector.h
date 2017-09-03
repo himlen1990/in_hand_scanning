@@ -28,10 +28,13 @@
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
-#include "cam_motion_tracker.h"
+#include "motion_tracker.h"
 #include "hand_keypoint.h"
 
-#include "touch_detector.h"
+#include "grasping_detector.h"
+#include "point_cloud_processor.h"
+
+#include <sensor_msgs/PointCloud2.h>
 
 class hand_keypoint_detector
 {
@@ -44,15 +47,16 @@ class hand_keypoint_detector
   boost::array<double,9> camera_info;
   bool get_camera_info;
   boost::mutex mutex_;
-  message_filters::Synchronizer<message_filters::sync_policies::ApproximateTime< sensor_msgs::Image, sensor_msgs::Image> >* sync_input_2_;
+  message_filters::Synchronizer<message_filters::sync_policies::ApproximateTime< sensor_msgs::Image, sensor_msgs::Image, sensor_msgs::PointCloud2> >* sync_input_3_;
   message_filters::Subscriber<sensor_msgs::Image> image1_sub;
   message_filters::Subscriber<sensor_msgs::Image> image2_sub;
+  message_filters::Subscriber<sensor_msgs::PointCloud2> pointcloud_sub;
   cv::Mat rgbImg_;
   cv::Mat depth_f_;
   bool kinect;
 
-  cam_motion_tracker cmt;
-  touch_detector td;
+  motion_tracker mt;
+  grasping_detector gd;
 
   bool init_flag;
 
@@ -62,7 +66,9 @@ class hand_keypoint_detector
   float cy;
   float invfx;
   float invfy;
-  
+  point_cloud_processor pcp;
+  ros::Publisher my_pointcloud_pub;
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
   //------------------------------------
 #if 0
   string camera_topic;
@@ -95,7 +101,7 @@ class hand_keypoint_detector
  public:
   hand_keypoint_detector(const std::string& image_topic);
   void camera_info_cb(const sensor_msgs::CameraInfoPtr& camInfo);
-  void convertImage(const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD);
+  void convertImage(const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD, const sensor_msgs::PointCloud2::ConstPtr& points);
   std::vector<std::vector<float> > get_keypoints(const std::shared_ptr<std::vector<op::Datum>>& datumsPtr);
   std::shared_ptr<std::vector<op::Datum>> createDatum();
 

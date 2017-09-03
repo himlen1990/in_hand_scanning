@@ -91,19 +91,21 @@ DEFINE_string(write_heatmaps_format,    "png",          "File extension and form
                                                         " Recommended `png` or any compressed and lossless format.");
 
 // This worker will just subscribe to the image topic specified above.
-hand_keypoint_detector::hand_keypoint_detector(const std::string& image_topic): get_camera_info(false),kinect(true),init_flag(false)
+hand_keypoint_detector::hand_keypoint_detector(const std::string& image_topic): get_camera_info(false),kinect(true),init_flag(false),cloud(new pcl::PointCloud<pcl::PointXYZRGB>())
         {
             // Subscribe to input video feed and publish output video feed
 	  hand_keypoints_pub_ = nh_.advertise<open_in_hand_scanning::keypoint>("hand_keypoints",1);
 	  //image_sub_ = it_.subscribe(image_topic, 1, &hand_keypoint_detector::convertImage, this);
 	  image1_sub.subscribe(nh_, "/camera/rgb/image_rect_color", 1);
 	  image2_sub.subscribe(nh_, "/camera/depth_registered/image_raw", 1);
-	  sync_input_2_ = new message_filters::Synchronizer<message_filters::sync_policies::ApproximateTime< sensor_msgs::Image,sensor_msgs::Image > >(10);
-	  sync_input_2_->connectInput(image1_sub,image2_sub);
-	  sync_input_2_->registerCallback(boost::bind(&hand_keypoint_detector::convertImage, this, _1, _2));
+	  pointcloud_sub.subscribe(nh_, "/camera/depth_registered/points", 1);
+	  sync_input_3_ = new message_filters::Synchronizer<message_filters::sync_policies::ApproximateTime< sensor_msgs::Image,sensor_msgs::Image,sensor_msgs::PointCloud2 > >(10);
+	  sync_input_3_->connectInput(image1_sub,image2_sub,pointcloud_sub);
+	  sync_input_3_->registerCallback(boost::bind(&hand_keypoint_detector::convertImage, this, _1, _2,_3));
 
-	    camera_info_sub = nh_.subscribe("/camera/depth_registered/camera_info",1, &hand_keypoint_detector::camera_info_cb, this);
-	    
+	  camera_info_sub = nh_.subscribe("/camera/depth_registered/camera_info",1, &hand_keypoint_detector::camera_info_cb, this);
+
+	  my_pointcloud_pub = nh_.advertise<pcl::PointCloud<pcl::PointXYZ>> ("myoutput", 1);
         }
 
 void hand_keypoint_detector::camera_info_cb(const sensor_msgs::CameraInfoPtr& caminfo)
@@ -140,7 +142,7 @@ Eigen::Vector3f hand_keypoint_detector::unproject(cv::Point kp, const float z)
 
 
   
-void hand_keypoint_detector::convertImage(const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD)
+void hand_keypoint_detector::convertImage(const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD, const sensor_msgs::PointCloud2::ConstPtr& points)
 {
   cv_bridge::CvImageConstPtr cv_ptrRGB;
   try
@@ -180,6 +182,22 @@ void hand_keypoint_detector::convertImage(const sensor_msgs::ImageConstPtr& msgR
         return;
       }
 
+    //pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+
+    pcl::PCLPointCloud2 pcl_pc;
+    pcl_conversions::toPCL(*points, pcl_pc);
+    pcl::fromPCLPointCloud2 (pcl_pc, *cloud);
+
+#if 1
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_out(new pcl::PointCloud<pcl::PointXYZRGB>());
+    pcp.distance_filter(cloud,cloud_out);
+
+    sensor_msgs::PointCloud2 pc2;
+    pcl::PCLPointCloud2::Ptr pcl_pc_2(new pcl::PCLPointCloud2());
+    pcl::toPCLPointCloud2 (*cloud_out, *pcl_pc_2);
+    pcl_conversions::fromPCL( *pcl_pc_2, pc2 );
+    my_pointcloud_pub.publish(pc2);
+#endif 
 
 }
 
@@ -229,7 +247,8 @@ std::vector<std::vector<float> > hand_keypoint_detector::get_keypoints(const std
 	      for(int i=0; i<numberHandParts*3; i=i+3)
 	  
 		{
-		  if( i == 3*3 || i == 4*3 || i == 7*3 || i == 8*3)
+		  //if( i == 2*3 || i == 3*3 || i == 4*3 || i == 6*3 || i == 7*3 || i == 8*3)
+		  if(i == 2*3 || i == 3*3 || i == 6*3 || i == 7*3)
 		    {
 		      const auto xR = datumsPtr->at(0).handKeypoints[1][i];
 		      const auto yR = datumsPtr->at(0).handKeypoints[1][i+1];
@@ -263,27 +282,28 @@ std::vector<std::vector<float> > hand_keypoint_detector::get_keypoints(const std
 	      */
 	      for(int i=0; i<xRv.size(); i++)
 		{
-		  if(scoreRv[i]>0.2)
+		  if(scoreRv[i]>0.3)
 		    {
 		    cv::circle(rgbImg_, cv::Point(int(xRv[i]),int(yRv[i])),5, cv::Scalar(255,100,255), 3);
 		    }
 		}
 	    
-	      td.detect(rgbImg_,touch_detection_keypoint);
+	      int grasping = gd.detect(rgbImg_,touch_detection_keypoint);
 
-	      if(!init_flag)	       //if touching-> add keyframe
-	      	{
-		  cout<<" wait for init"<<endl;
-		  if(cmt.add_keyframe(rgbImg_,depth_f_,rotation_estimate_keypoint))
-		    init_flag = true;
-		}
-#if 1
-	      else   //if collect enough keyframe > 5?, start registration
+	      if(grasping == 1)
 		{
-		  //cout<<"regist"<<endl;
-		  cmt.regist(rgbImg_,depth_f_, rotation_estimate_keypoint);
+		  cout<<"grasping"<<endl;
+		  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_out(new pcl::PointCloud<pcl::PointXYZRGB>());
+		  pcp.distance_filter(cloud,cloud_out);
+		  std::vector<int> indics;
+		  pcl::removeNaNFromPointCloud(*cloud_out,*cloud_out,indics);
+		  mt.add_keyframe(rgbImg_,depth_f_,rotation_estimate_keypoint,cloud_out);
 		}
-#endif	      
+	      else if(grasping == 0)
+	      	{
+		  cout<<" detached"<<endl;
+		  mt.reset_model_frame();
+		}
 	    }
 	  //cv::imshow("OpenPose ROS", datumsPtr->at(0).cvOutputData);
 	  

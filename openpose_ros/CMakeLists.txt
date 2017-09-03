@@ -17,12 +17,14 @@ find_package(catkin REQUIRED COMPONENTS
   glog_catkin
   geometry_msgs
   message_generation
+  pcl_ros
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 # find_package(CUDA REQUIRED) # Uncomment this line if you have trouble compiling
 find_package(OpenCV REQUIRED)
+find_package(PCL 1.8 REQUIRED)
 
 set(CAFFE_DIR /home/pr2/openpose/3rdparty/caffe)
 set(OPENPOSE_DIR /home/pr2/openpose)
@@ -69,11 +71,15 @@ include_directories(
   ${CUDA_INCLUDE_DIRS}
   ${CAFFE_INCLUDE_DIRS}
   ${OPENPOSE_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
 )
+
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
 
 SET(SRC
 "src/hand_keypoint_detector.cpp"
-"src/cam_motion_tracker.cpp"
+"src/motion_tracker.cpp"
 )
 
 
@@ -85,5 +91,14 @@ target_link_libraries(hand_keypoint
   ${CAFFE_LINK_LIBRARY}
   ${OPENPOSE_LINK_LIBRARY}
   ${Eigen3_LIBS}
+  ${PCL_LIBRARIES}
+)
+
+
+add_executable(system src/system.cpp)
+target_link_libraries(system
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+  ${PCL_LIBRARIES}
 )
 
